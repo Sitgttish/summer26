@@ -1,0 +1,4 @@
+.DS_Store
+
+JR_Ferro/ESM_Embedding/esm_features.npy
+JR_Ferro/ESM_Embedding/model_checkpoints/best_cnn_model.pth
