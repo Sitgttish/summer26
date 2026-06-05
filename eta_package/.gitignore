@@ -1,0 +1,7 @@
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+.embedding_cache_*.h5
+*.h5
