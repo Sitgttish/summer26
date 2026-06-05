@@ -24,7 +24,7 @@ ESM3 is a gated model. Before first use:
 ### Training
 
 ```bash
-eta --train positive.fasta negative.fasta ./model_output/
+etap --train positive.fasta negative.fasta ./model_output/
 ```
 
 Outputs saved to `./model_output/`:
@@ -48,7 +48,7 @@ Optional flags:
 ### Inference
 
 ```bash
-eta --eval model_output/best_model.pth new_sequences.fasta ./results.csv
+etap --eval model_output/best_model.pth new_sequences.fasta ./results.csv
 ```
 
 Output CSV columns: `header, gene, prob_positive, predicted_label`  
@@ -57,7 +57,7 @@ If FASTA headers contain `|label=1` or `|label=0`, full metrics are reported aut
 ### Attention analysis (optional)
 
 ```bash
-eta --eval best_model.pth sequences.fasta ./results.csv --gene-analyze
+etap --eval best_model.pth sequences.fasta ./results.csv --gene-analyze
 ```
 
 Saves five plots to `./analysis/`:
