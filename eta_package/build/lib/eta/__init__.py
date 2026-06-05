@@ -1,0 +1,7 @@
+"""ETA — ESM3-based Transformer Attention classifier for protein binary classification."""
+
+__version__ = '0.1.0'
+
+from .model import ETA
+from .train import run_training
+from .eval import run_eval
