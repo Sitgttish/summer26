@@ -1,4 +1,4 @@
-# ETA — ESM3-based Transformer Attention classifier
+# ETAP — ESM3-based Transformer Attention Protein classifier
 
 Binary protein sequence classifier built on ESM3 per-residue embeddings with a learned attention pooling layer.  
 Designed for any study requiring positive/negative classification of protein sequences.
@@ -6,9 +6,12 @@ Designed for any study requiring positive/negative classification of protein seq
 ## Installation
 
 ```bash
-pip install ./eta_package          # local install from this repo
-# or once published:
-pip install eta-clf
+pip install etap-clf
+```
+
+Or from source:
+```bash
+pip install "git+https://github.com/Sitgttish/summer26.git#subdirectory=eta_package"
 ```
 
 ESM3 is a gated model. Before first use:
