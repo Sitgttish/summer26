@@ -34,12 +34,9 @@ def load_esm3(device: torch.device):
 
     print('Loading ESM3 (esm3_sm_open_v1) ...', flush=True)
     model = ESM3.from_pretrained('esm3_sm_open_v1').eval()
-    # Use reduced precision on non-CUDA to halve RAM (~2.8 GB vs ~5.6 GB)
-    if device.type == 'mps':
-        model = model.half()          # float16 — well supported on MPS
-    elif device.type == 'cpu':
-        model = model.to(torch.bfloat16)   # bfloat16 — better numerics than float16 on CPU
-    model = model.to(device)
+    # bfloat16 on all devices: halves model weight memory (~2.8 GB vs ~5.6 GB)
+    # and prevents per-sequence attention OOM on long sequences
+    model = model.to(torch.bfloat16).to(device)
     dtype = next(model.parameters()).dtype
     print(f'ESM3 ready  (dtype={dtype}, device={device})', flush=True)
     tok = EsmSequenceTokenizer()

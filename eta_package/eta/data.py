@@ -109,10 +109,8 @@ def build_embedding_cache(
                     for t in token_list
                 ]).to(device)
 
-                with torch.no_grad():
-                    with torch.amp.autocast(device_type=device.type,
-                                            enabled=device.type == 'cuda'):
-                        out = esm3_model(sequence_tokens=padded)
+                with torch.inference_mode():
+                    out = esm3_model(sequence_tokens=padded)
 
                 for j, (sid, L) in enumerate(zip(batch_ids, actual_lens)):
                     emb = out.embeddings[j, 1:L + 1, :].float().cpu().numpy()
