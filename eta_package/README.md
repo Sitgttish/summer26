@@ -81,7 +81,7 @@ Saves five plots to `./analysis/`:
 ## Python API
 
 ```python
-from eta import ETA, run_training, run_eval
+from etap import ETA, run_training, run_eval
 
 # Training
 ckpt_path, metrics = run_training(

@@ -35,8 +35,8 @@ dependencies = [
 ]
 
 [project.scripts]
-etap = "eta.cli:main"
+etap = "etap.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["eta*"]
+include = ["etap*"]
