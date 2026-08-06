@@ -86,10 +86,31 @@ def build_embedding_cache(
 
     cache_path = Path(cache_path)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Resume support: skip sequences already embedded so an interrupted run
+    # (e.g. a Colab timeout) continues instead of restarting from scratch.
+    mode, existing = 'w', set()
+    if cache_path.exists():
+        try:
+            with h5py.File(cache_path, 'r') as _hf:
+                existing = set(_hf.keys())
+            mode = 'a'
+        except Exception:
+            mode = 'w'          # unreadable/corrupt → rebuild
+    if existing:
+        pairs = [(s, sid) for s, sid in zip(sequences, seq_ids)
+                 if str(sid) not in existing]
+        print(f'Resuming cache: {len(existing)} done, {len(pairs)} to embed',
+              flush=True)
+        sequences = [p[0] for p in pairs]
+        seq_ids = [p[1] for p in pairs]
     n = len(sequences)
+    if n == 0:
+        print('All sequences already embedded.', flush=True)
+        return
     print(f'Embedding {n} sequences → {cache_path}', flush=True)
 
-    with h5py.File(cache_path, 'w') as hf:
+    with h5py.File(cache_path, mode) as hf:
         bs = batch_size
         i = 0
         pbar = tqdm(total=n, desc='ESM3 embedding', unit='seq')
@@ -110,12 +131,16 @@ def build_embedding_cache(
                 ]).to(device)
 
                 with torch.inference_mode():
-                    out = esm3_model(sequence_tokens=padded)
+                    with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+                        out = esm3_model(sequence_tokens=padded)
 
                 for j, (sid, L) in enumerate(zip(batch_ids, actual_lens)):
+                    key = str(sid)
+                    if key in hf:
+                        continue
                     emb = out.embeddings[j, 1:L + 1, :].float().cpu().numpy()
                     hf.create_dataset(
-                        str(sid), data=emb.astype('float16'),
+                        key, data=emb.astype('float16'),
                         compression='gzip', compression_opts=4,
                     )
 

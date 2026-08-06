@@ -62,6 +62,19 @@ def run_training(
     out.mkdir(parents=True, exist_ok=True)
     seed = hp['seed']
 
+    # Idempotent: if a fully-trained model already exists (has test metrics),
+    # skip training entirely rather than redo it. Delete best_model.pth to retrain.
+    ckpt_path = out / 'best_model.pth'
+    if ckpt_path.exists():
+        try:
+            _done = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+        except Exception:
+            _done = None
+        if _done and 'test_metrics' in _done:
+            print(f'Finished model already at {ckpt_path} — skipping training '
+                  f'(delete it to retrain).', flush=True)
+            return ckpt_path, _done['test_metrics']
+
     if torch.cuda.is_available():
         device = torch.device('cuda')
     elif torch.backends.mps.is_available():
@@ -113,9 +126,20 @@ def run_training(
     else:
         cache_h5 = out / f'.embedding_cache_{seq_hash}.h5'
 
-    if cache_h5.exists():
+    import h5py
+    def _n_cached(p):
+        try:
+            with h5py.File(p, 'r') as f:
+                return len(f.keys())
+        except Exception:
+            return -1
+
+    if cache_h5.exists() and _n_cached(cache_h5) >= len(sequences):
         print(f'Using cached embeddings: {cache_h5}', flush=True)
     else:
+        if cache_h5.exists():
+            print(f'Cache incomplete ({_n_cached(cache_h5)}/{len(sequences)}) '
+                  f'— resuming embedding', flush=True)
         esm3, tok, pad_id, model_dtype = load_esm3(device)
         build_embedding_cache(
             sequences, seq_ids, esm3, tok, pad_id, model_dtype, device,
@@ -172,6 +196,14 @@ def run_training(
     best_val_auc, best_state, wait = 0.0, None, 0
     history = []
     t_total = time.time()
+
+    # The best checkpoint is written to disk every time val-AUC improves, so an
+    # interrupted session (e.g. a Colab timeout) still leaves the best-so-far model
+    # on disk — no need to retrain from scratch. (ckpt_path defined at top.)
+    _meta = {'headers': headers, 'labels': labels, 'genes': genes,
+             'idx_train': idx_train.tolist(), 'idx_val': idx_val.tolist(),
+             'idx_test': idx_test.tolist(), 'n_params': n_params}
+
     print(f'\n{"Epoch":>5}  {"Loss":>8}  {"Val-AUC":>8}  {"LR":>9}  {"Time":>6}',
           flush=True)
 
@@ -213,6 +245,9 @@ def run_training(
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
             wait = 0
             flag = '  ✓'
+            # persist best-so-far immediately (survives an interrupted run)
+            torch.save({'state_dict': best_state, 'hparams': hp,
+                        'val_auc': best_val_auc, 'metadata': _meta}, ckpt_path)
         else:
             wait += 1
             if wait >= hp['patience']:
@@ -258,21 +293,12 @@ def run_training(
     for k, v in test_metrics.items():
         print(f'  {k:20s}: {v:.4f}')
 
-    # ── Save ───────────────────────────────────────────────────────────────────
-    ckpt_path = out / 'best_model.pth'
+    # ── Save (final: same checkpoint, now with test metrics) ────────────────────
     torch.save({
         'state_dict':   best_state,
         'hparams':      hp,
         'test_metrics': test_metrics,
-        'metadata': {
-            'headers':   headers,
-            'labels':    labels,
-            'genes':     genes,
-            'idx_train': idx_train.tolist(),
-            'idx_val':   idx_val.tolist(),
-            'idx_test':  idx_test.tolist(),
-            'n_params':  n_params,
-        },
+        'metadata':     _meta,
     }, ckpt_path)
 
     pd.DataFrame(history).to_csv(out / 'training_history.csv', index=False)
