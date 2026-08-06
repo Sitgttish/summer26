@@ -62,6 +62,19 @@ def run_training(
     out.mkdir(parents=True, exist_ok=True)
     seed = hp['seed']
 
+    # Idempotent: if a fully-trained model already exists (has test metrics),
+    # skip training entirely rather than redo it. Delete best_model.pth to retrain.
+    ckpt_path = out / 'best_model.pth'
+    if ckpt_path.exists():
+        try:
+            _done = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+        except Exception:
+            _done = None
+        if _done and 'test_metrics' in _done:
+            print(f'Finished model already at {ckpt_path} — skipping training '
+                  f'(delete it to retrain).', flush=True)
+            return ckpt_path, _done['test_metrics']
+
     if torch.cuda.is_available():
         device = torch.device('cuda')
     elif torch.backends.mps.is_available():
@@ -186,8 +199,7 @@ def run_training(
 
     # The best checkpoint is written to disk every time val-AUC improves, so an
     # interrupted session (e.g. a Colab timeout) still leaves the best-so-far model
-    # on disk — no need to retrain from scratch.
-    ckpt_path = out / 'best_model.pth'
+    # on disk — no need to retrain from scratch. (ckpt_path defined at top.)
     _meta = {'headers': headers, 'labels': labels, 'genes': genes,
              'idx_train': idx_train.tolist(), 'idx_val': idx_val.tolist(),
              'idx_test': idx_test.tolist(), 'n_params': n_params}
