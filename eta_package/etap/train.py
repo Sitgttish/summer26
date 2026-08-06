@@ -183,6 +183,15 @@ def run_training(
     best_val_auc, best_state, wait = 0.0, None, 0
     history = []
     t_total = time.time()
+
+    # The best checkpoint is written to disk every time val-AUC improves, so an
+    # interrupted session (e.g. a Colab timeout) still leaves the best-so-far model
+    # on disk — no need to retrain from scratch.
+    ckpt_path = out / 'best_model.pth'
+    _meta = {'headers': headers, 'labels': labels, 'genes': genes,
+             'idx_train': idx_train.tolist(), 'idx_val': idx_val.tolist(),
+             'idx_test': idx_test.tolist(), 'n_params': n_params}
+
     print(f'\n{"Epoch":>5}  {"Loss":>8}  {"Val-AUC":>8}  {"LR":>9}  {"Time":>6}',
           flush=True)
 
@@ -224,6 +233,9 @@ def run_training(
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
             wait = 0
             flag = '  ✓'
+            # persist best-so-far immediately (survives an interrupted run)
+            torch.save({'state_dict': best_state, 'hparams': hp,
+                        'val_auc': best_val_auc, 'metadata': _meta}, ckpt_path)
         else:
             wait += 1
             if wait >= hp['patience']:
@@ -269,21 +281,12 @@ def run_training(
     for k, v in test_metrics.items():
         print(f'  {k:20s}: {v:.4f}')
 
-    # ── Save ───────────────────────────────────────────────────────────────────
-    ckpt_path = out / 'best_model.pth'
+    # ── Save (final: same checkpoint, now with test metrics) ────────────────────
     torch.save({
         'state_dict':   best_state,
         'hparams':      hp,
         'test_metrics': test_metrics,
-        'metadata': {
-            'headers':   headers,
-            'labels':    labels,
-            'genes':     genes,
-            'idx_train': idx_train.tolist(),
-            'idx_val':   idx_val.tolist(),
-            'idx_test':  idx_test.tolist(),
-            'n_params':  n_params,
-        },
+        'metadata':     _meta,
     }, ckpt_path)
 
     pd.DataFrame(history).to_csv(out / 'training_history.csv', index=False)
