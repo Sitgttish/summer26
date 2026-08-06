@@ -113,9 +113,20 @@ def run_training(
     else:
         cache_h5 = out / f'.embedding_cache_{seq_hash}.h5'
 
-    if cache_h5.exists():
+    import h5py
+    def _n_cached(p):
+        try:
+            with h5py.File(p, 'r') as f:
+                return len(f.keys())
+        except Exception:
+            return -1
+
+    if cache_h5.exists() and _n_cached(cache_h5) >= len(sequences):
         print(f'Using cached embeddings: {cache_h5}', flush=True)
     else:
+        if cache_h5.exists():
+            print(f'Cache incomplete ({_n_cached(cache_h5)}/{len(sequences)}) '
+                  f'— resuming embedding', flush=True)
         esm3, tok, pad_id, model_dtype = load_esm3(device)
         build_embedding_cache(
             sequences, seq_ids, esm3, tok, pad_id, model_dtype, device,
